@@ -3,7 +3,7 @@ const axios = require('axios');
 const bodyParser = require('body-parser');
 
 const app = express();
-const AUTOMATIQ_URL = 'https://sync.automatiq.com/api/gateway/sms';
+const AUTOMATIQ_URL = 'https://app.sync.automatiq.com/webhook/sms';
 
 // Custom parser for multiple content types
 app.use('/sms', (req, res, next) => {
