@@ -3,44 +3,55 @@ const axios = require('axios');
 const bodyParser = require('body-parser');
 
 const app = express();
-
-// DO NOT use bodyParser.json or urlencoded globally — they interfere with raw
-// Instead, apply bodyParser.raw ONLY to the /sms endpoint
-
 const AUTOMATIQ_URL = 'https://sync.automatiq.com/api/gateway/sms';
 
-app.post('/sms', bodyParser.raw({ type: '*/*', limit: '1mb' }), async (req, res) => {
+// Custom handler to support multiple formats
+app.use('/sms', (req, res, next) => {
+  const contentType = req.headers['content-type'] || '';
+  if (contentType.includes('application/json')) {
+    bodyParser.json()(req, res, next);
+  } else if (contentType.includes('application/x-www-form-urlencoded')) {
+    bodyParser.urlencoded({ extended: true })(req, res, next);
+  } else {
+    bodyParser.raw({ type: '*/*', limit: '1mb' })(req, res, next);
+  }
+});
+
+app.post('/sms', async (req, res) => {
   try {
-    if (!Buffer.isBuffer(req.body)) {
-      console.log('🟠 Expected raw buffer but got:', typeof req.body);
-      return res.status(400).json({ error: 'Expected raw body' });
-    }
+    let sender = '';
+    let message = '';
+    const contentType = req.headers['content-type'] || '';
 
-    const rawText = req.body.toString('utf-8');
-    console.log('🔵 Raw octet-stream body:\n' + rawText);
+    if (Buffer.isBuffer(req.body)) {
+      const rawText = req.body.toString('utf-8');
+      console.log('🔵 Raw octet-stream body:\n' + rawText);
 
-    // Parse key:value pairs
-    const lines = rawText.split('\n');
-    let sender = '', message = '';
-    for (const line of lines) {
-      const [key, ...rest] = line.split(':');
-      const value = rest.join(':').trim();
-      if (key.toLowerCase().includes('sender')) sender = value;
-      if (key.toLowerCase().includes('message')) message = value;
+      const lines = rawText.split('\n');
+      for (const line of lines) {
+        const [key, ...rest] = line.split(':');
+        const value = rest.join(':').trim();
+        if (key.toLowerCase().includes('sender')) sender = value;
+        if (key.toLowerCase().includes('message')) message = value;
+      }
+    } else if (typeof req.body === 'object') {
+      console.log('🔵 Parsed structured body:', req.body);
+      sender = req.body.Sender || req.body.sender || '';
+      message = req.body.Message || req.body.message || '';
+    } else {
+      console.log('🟠 Unhandled body type:', typeof req.body);
     }
 
     if (!sender || !message) {
       return res.status(400).json({ error: 'Missing sender or message.' });
     }
 
-    // Detect service
     let service = 'SG';
     const lowerText = message.toLowerCase();
     if (lowerText.includes('ticketmaster')) service = 'TM';
     else if (lowerText.includes('axs')) service = 'AXS';
     else if (lowerText.includes('seatgeek')) service = 'SG';
 
-    // Extract OTP
     const match = message.match(/(\d{4,8})/);
     const otp = match ? match[1] : null;
 
