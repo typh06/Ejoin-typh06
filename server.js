@@ -5,7 +5,7 @@ const bodyParser = require('body-parser');
 const app = express();
 const AUTOMATIQ_URL = 'https://sync.automatiq.com/api/gateway/sms';
 
-// Custom handler to support multiple formats
+// Custom parser for multiple content types
 app.use('/sms', (req, res, next) => {
   const contentType = req.headers['content-type'] || '';
   if (contentType.includes('application/json')) {
@@ -36,6 +36,8 @@ app.post('/sms', async (req, res) => {
       }
     } else if (typeof req.body === 'object') {
       console.log('🔵 Parsed structured body:', req.body);
+      console.log('🧩 Available keys:', Object.keys(req.body));
+
       sender = req.body.Sender || req.body.sender || '';
       message = req.body.Message || req.body.message || '';
     } else {
@@ -46,12 +48,14 @@ app.post('/sms', async (req, res) => {
       return res.status(400).json({ error: 'Missing sender or message.' });
     }
 
+    // Detect service
     let service = 'SG';
     const lowerText = message.toLowerCase();
     if (lowerText.includes('ticketmaster')) service = 'TM';
     else if (lowerText.includes('axs')) service = 'AXS';
     else if (lowerText.includes('seatgeek')) service = 'SG';
 
+    // Extract OTP
     const match = message.match(/(\d{4,8})/);
     const otp = match ? match[1] : null;
 
