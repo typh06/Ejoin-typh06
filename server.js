@@ -80,10 +80,8 @@ app.post('/sms', async (req, res) => {
       message
     };
 
-    // ✅ Log full JSON body for proof
-    console.log('📤 Sending JSON to Automatiq:', JSON.stringify(payload, null, 2));
+    console.log('🟢 Forwarding to Automatiq:', payload);
 
-    // ✅ Send as JSON with proper headers
     await axios.post(AUTOMATIQ_URL, payload, {
       headers: {
         'Content-Type': 'application/json'
