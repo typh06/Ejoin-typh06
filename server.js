@@ -81,7 +81,12 @@ app.post('/sms', async (req, res) => {
     };
 
     console.log('🟢 Forwarding to Automatiq:', payload);
-    await axios.post(AUTOMATIQ_URL, payload);
+
+    await axios.post(AUTOMATIQ_URL, payload, {
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
 
     res.status(200).send('Forwarded to Automatiq');
   } catch (err) {
