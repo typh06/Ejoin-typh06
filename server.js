@@ -19,7 +19,7 @@ app.use('/sms', (req, res, next) => {
 
 app.post('/sms', async (req, res) => {
   try {
-    let sender = '';
+    let toNumber = '';
     let message = '';
     const contentType = req.headers['content-type'] || '';
     console.log('📦 Content-Type:', contentType);
@@ -34,9 +34,11 @@ app.post('/sms', async (req, res) => {
         const [key, ...rest] = line.split(':');
         const value = rest.join(':').trim();
 
-        if (key.toLowerCase().includes('sender')) sender = value;
-        else if (key.toLowerCase().includes('message')) message = value;
-        else if (
+        if (key.toLowerCase().includes('receiver')) {
+          toNumber = value.replace(/"[^"]*"\s*/, '').trim(); // Remove things like "1.01"
+        } else if (key.toLowerCase().includes('message')) {
+          message = value;
+        } else if (
           !line.includes(':') &&
           i > 0 &&
           i === lines.length - 1 &&
@@ -48,14 +50,14 @@ app.post('/sms', async (req, res) => {
     } else if (typeof req.body === 'object') {
       console.log('🔵 Parsed structured body:', req.body);
       console.log('🧩 Available keys:', Object.keys(req.body));
-      sender = req.body.Sender || req.body.sender || '';
+      toNumber = req.body.Receiver || req.body.receiver || '';
       message = req.body.Message || req.body.message || '';
     } else {
       console.log('🟠 Unknown body type:', typeof req.body);
     }
 
-    if (!sender || !message) {
-      return res.status(400).json({ error: 'Missing sender or message.' });
+    if (!toNumber || !message) {
+      return res.status(400).json({ error: 'Missing receiver (TO number) or message.' });
     }
 
     // Detect service
@@ -74,14 +76,16 @@ app.post('/sms', async (req, res) => {
     }
 
     const payload = {
-      number: sender,
+      number: toNumber,
       service,
       otp_code: otp || '',
       message
     };
 
-    console.log('🟢 Forwarding to Automatiq:', payload);
+    // ✅ Log full JSON body for proof
+    console.log('📤 Sending JSON to Automatiq:', JSON.stringify(payload, null, 2));
 
+    // ✅ Send as JSON with proper headers
     await axios.post(AUTOMATIQ_URL, payload, {
       headers: {
         'Content-Type': 'application/json'
