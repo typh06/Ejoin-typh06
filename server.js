@@ -22,10 +22,11 @@ app.post('/sms', async (req, res) => {
     let sender = '';
     let message = '';
     const contentType = req.headers['content-type'] || '';
+    console.log('📦 Content-Type:', contentType);
 
     if (Buffer.isBuffer(req.body)) {
       const rawText = req.body.toString('utf-8');
-      console.log('🔵 Raw octet-stream body:\n' + rawText);
+      console.log('🔵 Raw buffer body:\n' + rawText);
 
       const lines = rawText.split('\n');
       for (const line of lines) {
@@ -37,11 +38,10 @@ app.post('/sms', async (req, res) => {
     } else if (typeof req.body === 'object') {
       console.log('🔵 Parsed structured body:', req.body);
       console.log('🧩 Available keys:', Object.keys(req.body));
-
       sender = req.body.Sender || req.body.sender || '';
       message = req.body.Message || req.body.message || '';
     } else {
-      console.log('🟠 Unhandled body type:', typeof req.body);
+      console.log('🟠 Unknown body type:', typeof req.body);
     }
 
     if (!sender || !message) {
