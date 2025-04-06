@@ -10,11 +10,30 @@ const AUTOMATIQ_URL = 'https://sync.automatiq.com/api/gateway/sms';
 
 app.post('/sms', async (req, res) => {
   try {
-    const sms = req.body.sms[0];
+    console.log('Incoming request:', JSON.stringify(req.body, null, 2));
+
+    const smsArray = req.body.sms;
+    if (!smsArray || !Array.isArray(smsArray) || smsArray.length === 0) {
+      return res.status(400).json({ error: 'Invalid or missing "sms" array in payload.' });
+    }
+
+    const sms = smsArray[0];
     const base64Message = sms[5];
     const decodedMsg = atob(base64Message);
     const sender = sms[3];
 
+    // === Auto-detect service type ===
+    let service = 'SG'; // default fallback
+    const lowerText = decodedMsg.toLowerCase();
+    if (lowerText.includes('ticketmaster')) {
+      service = 'TM';
+    } else if (lowerText.includes('axs')) {
+      service = 'AXS';
+    } else if (lowerText.includes('seatgeek')) {
+      service = 'SG';
+    }
+
+    // === Extract OTP code ===
     const match = decodedMsg.match(/(\d{4,8})/);
     const otp = match ? match[1] : null;
 
@@ -24,12 +43,14 @@ app.post('/sms', async (req, res) => {
 
     const payload = {
       number: sender,
-      service: 'SG',
+      service,
       otp_code: otp,
       message: decodedMsg
     };
 
     await axios.post(AUTOMATIQ_URL, payload);
+    console.log('Forwarded to Automatiq:', payload);
+
     res.status(200).send('Forwarded to Automatiq');
   } catch (err) {
     console.error('Middleware Error:', err.message);
