@@ -3,37 +3,49 @@ const axios = require('axios');
 const bodyParser = require('body-parser');
 
 const app = express();
-app.use(bodyParser.urlencoded({ extended: true })); // handles form-style
-app.use(bodyParser.json()); // handles JSON-style
+
+// DO NOT use bodyParser.json or urlencoded globally — they interfere with raw
+// Instead, apply bodyParser.raw ONLY to the /sms endpoint
 
 const AUTOMATIQ_URL = 'https://sync.automatiq.com/api/gateway/sms';
 
-app.post('/sms', async (req, res) => {
+app.post('/sms', bodyParser.raw({ type: '*/*', limit: '1mb' }), async (req, res) => {
   try {
-    console.log('🔵 Raw body:', req.body);
-    console.log('🔵 Query params:', req.query);
-    console.log('🔵 Headers:', req.headers);
-
-    const sender = req.body.Sender || req.body.sender || req.query.sender;
-    const message = req.body.Message || req.body.message || req.query.message || '';
-
-    if (!sender || !message) {
-      console.log('🟠 Missing sender or message — request details:');
-      return res.status(400).json({ error: 'Missing sender or message', debug: { body: req.body, query: req.query } });
+    if (!Buffer.isBuffer(req.body)) {
+      console.log('🟠 Expected raw buffer but got:', typeof req.body);
+      return res.status(400).json({ error: 'Expected raw body' });
     }
 
+    const rawText = req.body.toString('utf-8');
+    console.log('🔵 Raw octet-stream body:\n' + rawText);
+
+    // Parse key:value pairs
+    const lines = rawText.split('\n');
+    let sender = '', message = '';
+    for (const line of lines) {
+      const [key, ...rest] = line.split(':');
+      const value = rest.join(':').trim();
+      if (key.toLowerCase().includes('sender')) sender = value;
+      if (key.toLowerCase().includes('message')) message = value;
+    }
+
+    if (!sender || !message) {
+      return res.status(400).json({ error: 'Missing sender or message.' });
+    }
+
+    // Detect service
     let service = 'SG';
     const lowerText = message.toLowerCase();
     if (lowerText.includes('ticketmaster')) service = 'TM';
     else if (lowerText.includes('axs')) service = 'AXS';
     else if (lowerText.includes('seatgeek')) service = 'SG';
 
+    // Extract OTP
     const match = message.match(/(\d{4,8})/);
     const otp = match ? match[1] : null;
 
     if (!otp) {
-      console.error('🔴 OTP not found in message:', message);
-      return res.status(400).json({ error: 'OTP not found.' });
+      return res.status(400).json({ error: 'OTP not found in message.' });
     }
 
     const payload = {
