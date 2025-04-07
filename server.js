@@ -5,6 +5,15 @@ const bodyParser = require('body-parser');
 const app = express();
 const AUTOMATIQ_URL = 'https://app.sync.automatiq.com/webhook/sms';
 
+// ✅ Helper to ensure phone number starts with "1" and has only digits
+function normalizePhone(num) {
+  const digits = num.replace(/\D/g, '');
+  if (digits.length === 10) {
+    return '1' + digits;
+  }
+  return digits;
+}
+
 // Custom parser for multiple content types
 app.use('/sms', (req, res, next) => {
   const contentType = req.headers['content-type'] || '';
@@ -35,7 +44,7 @@ app.post('/sms', async (req, res) => {
         const value = rest.join(':').trim();
 
         if (key.toLowerCase().includes('receiver')) {
-          toNumber = value.replace(/"[^"]*"\s*/, '').trim(); // Remove things like "1.01"
+          toNumber = value.replace(/"[^"]*"\s*/, '').trim(); // remove "1.01" or similar
         } else if (key.toLowerCase().includes('message')) {
           message = value;
         } else if (
@@ -60,6 +69,8 @@ app.post('/sms', async (req, res) => {
       return res.status(400).json({ error: 'Missing receiver (TO number) or message.' });
     }
 
+    const normalizedNumber = normalizePhone(toNumber);
+
     // Detect service
     let service = 'SG';
     const lowerText = message.toLowerCase();
@@ -76,16 +87,14 @@ app.post('/sms', async (req, res) => {
     }
 
     const payload = {
-      number: toNumber,
+      number: normalizedNumber,
       service,
       otp_code: otp || '',
       message
     };
 
-    // ✅ Log full JSON body for proof
     console.log('📤 Sending JSON to Automatiq:', JSON.stringify(payload, null, 2));
 
-    // ✅ Send as JSON with proper headers
     await axios.post(AUTOMATIQ_URL, payload, {
       headers: {
         'Content-Type': 'application/json'
