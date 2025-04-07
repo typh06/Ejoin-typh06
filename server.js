@@ -95,15 +95,23 @@ app.post('/sms', async (req, res) => {
 
     console.log('📤 Sending JSON to Automatiq:', JSON.stringify(payload, null, 2));
 
-    await axios.post(AUTOMATIQ_URL, payload, {
+    // ✅ Send with proper headers + log response
+    const response = await axios.post(AUTOMATIQ_URL, payload, {
       headers: {
         'Content-Type': 'application/json'
       }
     });
 
+    console.log(`✅ Automatiq responded with status ${response.status}: ${response.statusText}`);
+    console.log('🔄 Response body:', response.data);
+
     res.status(200).send('Forwarded to Automatiq');
   } catch (err) {
     console.error('🔥 Middleware Error:', err.message);
+    if (err.response) {
+      console.error(`❌ Automatiq error response: ${err.response.status} ${err.response.statusText}`);
+      console.error('🔄 Error body:', err.response.data);
+    }
     res.status(500).send('Server error');
   }
 });
